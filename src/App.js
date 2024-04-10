@@ -10,6 +10,9 @@ import { eip1271 } from "./helpers/eip1271";
 import { hashMessage } from "./helpers/utiliities";
 import SignMessageModal from "./modals/SignMessageModal";
 
+import stakingAbi from "./helpers/staking.json";
+import BUSDABI from "./helpers/BUSD.json";
+
 function App() {
   const [pending, setPending] = useState(false);
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
@@ -48,96 +51,43 @@ function App() {
     openTxnModal();
     setPending(true);
 
-    const AAVE_V3_POOL_POLYGON = "0x794a61358D6845594F94dc1DB02A252b5b4814aD";
-    const USDT = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
+    // const AAVE_V3_POOL_POLYGON = "0x794a61358D6845594F94dc1DB02A252b5b4814aD";
+    // const USDT = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
+    const STAKING_CONTRACT = "0x5103E761FC51Efa06810F5053583DF9266696D0b";
+    const BUSD_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
     const amount = "1000000";
+    const poolID="8";
 
-    const aaveABI = [
-      {
-        inputs: [
-          {
-            internalType: "address",
-            name: "asset",
-            type: "address",
-          },
-          {
-            internalType: "uint256",
-            name: "amount",
-            type: "uint256",
-          },
-          {
-            internalType: "address",
-            name: "onBehalfOf",
-            type: "address",
-          },
-          {
-            internalType: "uint16",
-            name: "referralCode",
-            type: "uint16",
-          },
-        ],
-        name: "supply",
-        outputs: [],
-        stateMutability: "nonpayable",
-        type: "function",
-      },
-    ];
-    const erc20ABI = [
-      {
-        inputs: [
-          {
-            internalType: "address",
-            name: "spender",
-            type: "address",
-          },
-          {
-            internalType: "uint256",
-            name: "value",
-            type: "uint256",
-          },
-        ],
-        name: "approve",
-        outputs: [
-          {
-            internalType: "bool",
-            name: "",
-            type: "bool",
-          },
-        ],
-        stateMutability: "nonpayable",
-        type: "function",
-      },
-    ];
+   
 
-    const approveContract = new ethers.utils.Interface(erc20ABI);
+    const approveContract = new ethers.utils.Interface(BUSDABI);
 
     //Create data for approving token for lending pool
     const approveData = approveContract.encodeFunctionData("approve", [
-      AAVE_V3_POOL_POLYGON,
+      STAKING_CONTRACT,
       amount,
     ]);
 
-    const lendContract = new ethers.utils.Interface(aaveABI);
+    const lendContract = new ethers.utils.Interface(stakingAbi);
 
     //Create data for lending on Aave
-    const lendData = lendContract.encodeFunctionData("supply", [
-      USDT,
+    const lendData = lendContract.encodeFunctionData("deposit", [
+      poolID,
       amount,
-      walletAddress,
-      "0",
+      
     ]);
 
     // Draft transaction
     const tx = {
       from: walletAddress, //Plena Wallet Address
       data: [approveData, lendData], //Encoded data for all transactions in order of execution
-      to: [USDT, AAVE_V3_POOL_POLYGON], //Smart Contract Addresses On which the transactions has to made
+      to: [BUSD_ADDRESS, STAKING_CONTRACT], //Smart Contract Addresses On which the transactions has to made
       tokens: ["", ""], // Feature to be launched (Leave empty for now). The Array should be of same length as the above attributes
       amounts: ["0x0", "0x0"], //Native Token Amounts required in transaction
     };
     try {
       const res = await sendTransaction({
-        chain: 137,
+        chain: 56,
         method: "send_transaction",
         payload: {
           transaction: tx,
@@ -163,33 +113,40 @@ function App() {
   const testSignTransaction = async () => {
     openSignModal();
     setPending(true);
+    const STAKING_CONTRACT = "0x5103E761FC51Efa06810F5053583DF9266696D0b";
+    const BUSD_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
+    const amount = "1000000";
+    const approveContract = new ethers.utils.Interface(BUSDABI);
+
+    //Create data for approving token for lending pool
+    const approveData = approveContract.encodeFunctionData("approve", [
+      STAKING_CONTRACT,
+      amount,
+    ]);
+
+    const tx = {
+      from: walletAddress, //Plena Wallet Address
+      data: [approveData], //Encoded data for all transactions in order of execution
+      to: [BUSD_ADDRESS], //Smart Contract Addresses On which the transactions has to made
+      tokens: ["", ""], // Feature to be launched (Leave empty for now). The Array should be of same length as the above attributes
+      amounts: ["0x0", "0x0"], //Native Token Amounts required in transaction
+    };
     try {
-      const message = `My email is john@doe.com - ${new Date().toUTCString()}`;
-      const hexMsg = convertUtf8ToHex(message);
-      const msgParams = [hexMsg, walletAddress];
+      
       const res = await sendTransaction({
         chain: 137,
-        method: "personal_sign",
+        method: "send_transaction",
         payload: {
-          msgParams,
+          transaction: tx,
         },
       });
       if (!res?.success) {
         setResult(false);
         return;
       }
-      const hash = hashMessage(message);
-      const polygonProvider = new ethers.providers.JsonRpcProvider(
-        "https://polygon-rpc.com/"
-      );
-      const valid = await eip1271.isValidSignature(
-        walletAddress,
-        res?.content?.signature,
-        hash,
-        polygonProvider
-      );
+     
       const formattedResult = {
-        method: "personal_sign",
+        method: "send_transaction",
         signature: res?.content?.signature,
         from: walletAddress,
       };
@@ -225,7 +182,7 @@ function App() {
                   onClick={testSignTransaction}
                   className="text-sm  mx-2 bg-985AFF px-20 py-5 flex justify-center items-center"
                 >
-                  Personal Sign
+                  Only Approve
                 </Button>
                 <Button
                   type="primary"
@@ -233,7 +190,7 @@ function App() {
                   cancelTransaction={cancelTransaction}
                   className="text-sm  mx-2  mt-5 bg-985AFF px-10 py-5 flex justify-center items-center"
                 >
-                  Send Transaction
+                  Approve and deposit
                 </Button>
                 <Button
                   type="primary"
